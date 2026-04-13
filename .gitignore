@@ -3,7 +3,6 @@
 *.cpio
 *.cpio.gz
 *.gz
-busybox
 vmlinux
 bzImage
 *.ko
@@ -15,14 +14,15 @@ build/
 build.log
 *.log
 
-# Mount points
-mnt/
-mnt_*/
-
-# Generated files
+# Generated rootfs
 rootfs/
 rootfs.img
 rootfs.cpio.gz
+mnt/
+mnt_*/
+
+# Busybox build source cache
+prebuilt/busybox-src/
 
 # IDE
 .vscode/

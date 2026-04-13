@@ -3,24 +3,65 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-ROOTFS_DIR="${1:-$REPO_ROOT/rootfs}"
+ARCH="x86_64"
+ROOTFS_DIR="$REPO_ROOT/rootfs"
 
-echo "=== Creating rootfs at: $ROOTFS_DIR ==="
+usage() {
+    echo "Usage: $0 [--arch x86_64|aarch64] [rootfs-dir]"
+    echo ""
+    echo "Options:"
+    echo "  --arch    Target architecture (default: x86_64)"
+    echo ""
+    exit 1
+}
 
-mkdir -p "$ROOTFS_DIR"/{bin,sbin,etc/init.d,proc,sys,dev,tmp,lib,usr/{bin,sbin},root}
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --arch)
+            ARCH="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            usage
+            ;;
+        *)
+            ROOTFS_DIR="$1"
+            shift
+            ;;
+    esac
+done
 
+if [[ "$ARCH" != "x86_64" && "$ARCH" != "aarch64" ]]; then
+    echo "Unsupported architecture: $ARCH"
+    echo "Supported: x86_64, aarch64"
+    exit 1
+fi
+
+BUSYBOX_NAME="busybox-$ARCH"
 BUSYBOX_SRC=""
 
+echo "=== Creating $ARCH rootfs at: $ROOTFS_DIR ==="
+
+mkdir -p "$ROOTFS_DIR"/{bin,sbin,etc/init.d,proc,sys,dev,tmp,lib,lib64,usr/{bin,sbin},root}
+
 find_busybox() {
-    if [ -f "$REPO_ROOT/busybox" ]; then
-        BUSYBOX_SRC="$REPO_ROOT/busybox"
+    if [ -f "$REPO_ROOT/prebuilt/busybox/$BUSYBOX_NAME" ]; then
+        BUSYBOX_SRC="$REPO_ROOT/prebuilt/busybox/$BUSYBOX_NAME"
+        return 0
+    fi
+    if [ -f "$REPO_ROOT/$BUSYBOX_NAME" ]; then
+        BUSYBOX_SRC="$REPO_ROOT/$BUSYBOX_NAME"
         return 0
     fi
     if [ -f "$ROOTFS_DIR/busybox" ]; then
         BUSYBOX_SRC="$ROOTFS_DIR/busybox"
         return 0
     fi
-    if command -v busybox >/dev/null 2>&1; then
+    if [ "$ARCH" = "x86_64" ] && command -v busybox >/dev/null 2>&1; then
         local sys_bb
         sys_bb="$(command -v busybox)"
         if ldd "$sys_bb" 2>/dev/null | grep -q 'not a dynamic executable'; then
@@ -36,12 +77,16 @@ if find_busybox; then
     cp "$BUSYBOX_SRC" "$ROOTFS_DIR/busybox"
     chmod +x "$ROOTFS_DIR/busybox"
 else
-    echo "WARNING: No static busybox found."
+    echo "WARNING: No static busybox found for architecture: $ARCH"
     echo ""
     echo "Please provide a static busybox binary by one of:"
-    echo "  1. Copy busybox to this repo root:  cp /path/to/busybox $REPO_ROOT/busybox"
+    echo "  1. Copy busybox to this repo root:  cp /path/to/$BUSYBOX_NAME $REPO_ROOT/prebuilt/busybox/"
     echo "  2. Download from: https://busybox.net/downloads/binaries/"
-    echo "  3. Install system busybox-static:   sudo apt install busybox-static"
+    echo "  3. Install system busybox-static and rerun (x86_64 only):"
+    echo "     sudo apt install busybox-static   # Debian/Ubuntu"
+    echo "     sudo dnf install busybox          # openEuler/Fedora"
+    echo "  4. Build from source:"
+    echo "     ./scripts/build-busybox.sh $ARCH"
     echo ""
     exit 1
 fi
@@ -101,11 +146,17 @@ mknod dev/random c 1 8 2>/dev/null || true
 mknod dev/urandom c 1 9 2>/dev/null || true
 mknod dev/tty c 5 0 2>/dev/null || true
 mknod dev/console c 5 1 2>/dev/null || true
-mknod dev/ttyS0 c 4 64 2>/dev/null || true
+
+if [ "$ARCH" = "x86_64" ]; then
+    mknod dev/ttyS0 c 4 64 2>/dev/null || true
+else
+    mknod dev/ttyAMA0 c 204 64 2>/dev/null || true
+fi
 
 cd - > /dev/null
 
-echo "=== Rootfs directory ready: $ROOTFS_DIR ==="
+echo ""
+echo "=== $ARCH rootfs directory ready: $ROOTFS_DIR ==="
 echo ""
 echo "Next steps:"
 echo "  1. Create disk image:   ./scripts/mkrootfs-img.sh $ROOTFS_DIR"

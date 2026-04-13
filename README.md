@@ -2,82 +2,122 @@
 
 A minimal, reproducible toolkit for compiling and running a custom Linux kernel with QEMU and BusyBox.
 
-## What is this?
+Supports **x86_64** and **aarch64 (ARM64)** architectures.
 
-This repo provides everything you need to go from a kernel source tree to a running QEMU VM with a BusyBox rootfs.
+## Features
 
-- No dependency on a specific kernel repository
-- Modular, copy-paste friendly config templates
+- One-key deployment with interactive prompts
+- Prebuilt static busybox for x86_64 (zero dependency)
+- Copy-paste kernel config templates
 - Works with TCG (no KVM) and KVM modes
+- AI-agent friendly (OpenCode / Cursor / Copilot)
+
+## Quick Start (One Key Deploy)
+
+```bash
+git clone <your-repo-url> kernel-qemu-devkit
+cd kernel-qemu-devkit
+./deploy.sh
+```
+
+This interactive script will ask you for:
+- Target architecture (`x86_64` or `aarch64`)
+- Kernel source directory
+- Boot mode (`tcg` or `kvm`)
+
+Then it automatically does:
+1. Generates rootfs directory with busybox
+2. Creates `rootfs.img`
+3. Applies kernel config template
+4. Compiles the kernel
+5. Offers to start QEMU immediately
 
 ## Directory Layout
 
 ```
 .
+├── deploy.sh                       ← One-key deploy script
 ├── configs/
-│   └── x86_64_defconfig.template   # Kernel config template with required options
+│   ├── x86_64_defconfig.template   # x86_64 kernel config
+│   └── arm64_defconfig.template    # aarch64 kernel config
 ├── docs/
-│   ├── KERNEL_QEMU_GUIDE.md        # Full guide and troubleshooting
-│   └── AGENTS.md                   # Agent coding assistant guidelines
+│   ├── KERNEL_QEMU_GUIDE.md        # Full guide
+│   └── AGENTS.md                   # AI assistant guidelines
+├── prebuilt/
+│   └── busybox/
+│       └── busybox-x86_64          # Prebuilt static busybox
 ├── rootfs-template/
-│   └── init                        # Minimal init script template
+│   └── init                        # init script template
 ├── scripts/
-│   ├── prepare-rootfs.sh           # Generate rootfs directory
+│   ├── prepare-rootfs.sh           # Generate rootfs dir (supports --arch)
 │   ├── mkrootfs-img.sh             # Pack rootfs into ext4 .img
-│   ├── run-qemu-tcg.sh             # Run with TCG (no KVM)
-│   └── run-qemu.sh                 # Run with KVM
+│   ├── build-busybox.sh            # Build static busybox from source
+│   ├── run-qemu-tcg.sh             # x86_64 TCG mode
+│   ├── run-qemu.sh                 # x86_64 KVM mode
+│   └── run-qemu-arm64.sh           # aarch64 TCG mode
 ├── .gitignore
 ├── LICENSE
 └── README.md
 ```
 
-## Quick Start
+## Manual Steps
 
-### 1. Prepare BusyBox
+If you prefer to run each step manually:
 
-You need a **statically-linked** `busybox` binary. Choose one of:
+### 1. Generate Rootfs
 
-```bash
-# Option A: Use system package (Debian/Ubuntu)
-sudo apt install busybox-static
-
-# Option B: Download manually from https://busybox.net/downloads/binaries/
-# and copy it into this repo root:
-cp busybox-x86_64 ./busybox
-```
-
-### 2. Generate Rootfs
+**x86_64** (prebuilt busybox already included):
 
 ```bash
-# Create rootfs/ directory
-./scripts/prepare-rootfs.sh
-
-# Create rootfs.img (requires sudo for mount)
+./scripts/prepare-rootfs.sh --arch x86_64
 ./scripts/mkrootfs-img.sh
 ```
 
-### 3. Prepare Kernel
+**aarch64** (build busybox first, or provide your own):
 
-Place your kernel source next to this repo (or anywhere), then apply the config template:
+```bash
+# Install aarch64 cross compiler
+sudo apt install gcc-aarch64-linux-gnu
+
+# Build static busybox
+./scripts/build-busybox.sh aarch64
+
+# Generate rootfs
+./scripts/prepare-rootfs.sh --arch aarch64
+./scripts/mkrootfs-img.sh
+```
+
+### 2. Prepare Kernel
 
 ```bash
 cd /path/to/linux
+
+# x86_64
 make x86_64_defconfig
 cat ../kernel-qemu-devkit/configs/x86_64_defconfig.template >> .config
 make oldconfig
 make -j$(($(nproc)-2))
+
+# aarch64
+make ARCH=arm64 defconfig
+cat ../kernel-qemu-devkit/configs/arm64_defconfig.template >> .config
+make ARCH=arm64 oldconfig
+make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
 ```
 
-### 4. Run QEMU
+### 3. Run QEMU
 
 ```bash
 cd /path/to/kernel-qemu-devkit
 
-# TCG mode (works everywhere)
-./scripts/run-qemu-tcg.sh
+# x86_64 TCG
+./scripts/run-qemu-tcg.sh /path/to/linux /path/to/rootfs.img
 
-# Or KVM mode (requires /dev/kvm)
-./scripts/run-qemu.sh
+# x86_64 KVM
+./scripts/run-qemu.sh /path/to/linux /path/to/rootfs.img
+
+# aarch64 TCG
+./scripts/run-qemu-arm64.sh /path/to/linux /path/to/rootfs.img
 ```
 
 Inside the VM shell, try:
@@ -85,34 +125,34 @@ Inside the VM shell, try:
 ```sh
 / # ls /proc/
 / # uname -a
-```
-
-## Environment Variables
-
-Both `run-qemu-*.sh` scripts accept arguments or env variables:
-
-```bash
-# Explicit paths
-./scripts/run-qemu-tcg.sh /path/to/linux /path/to/rootfs.img
-
-# Or via env
-KERNEL_DIR=/path/to/linux ROOTFS_IMG=/path/to/rootfs.img ./scripts/run-qemu-tcg.sh
+/ # cat /proc/cpuinfo
 ```
 
 ## Troubleshooting
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `proc/` is empty | `init=/init` missing from kernel cmdline | Already included in run scripts |
-| `No static busybox found` | No pre-installed static busybox | `apt install busybox-static` or place `busybox` in repo root |
-| `KVM permission denied` | User not in `kvm` group or no hardware virt | Use `run-qemu-tcg.sh` instead |
-| virtio disk not found | `CONFIG_VIRTIO_BLK` missing | Copy `.config.template` into kernel config |
-| No serial output | `CONFIG_SERIAL_8250_CONSOLE` missing | Same as above |
+| `proc/` is empty | Missing `init=/init` in kernel cmdline | Already included in all run scripts |
+| `No static busybox found` | Prebuilt binary missing | Run `./scripts/build-busybox.sh x86_64` or copy one to `prebuilt/busybox/` |
+| aarch64 busybox missing | Not prebuilt for legal/size | Install cross compiler and run `./scripts/build-busybox.sh aarch64` |
+| `KVM permission denied` | No KVM access | Use `run-qemu-tcg.sh` or add user to `kvm` group |
+| virtio disk not found | Missing `CONFIG_VIRTIO_BLK` | Copy config template into kernel `.config` |
 
-## Binary Files Policy
+## AI Agent / OpenCode Support
 
-- `busybox` (~1MB): Put it in repo root or let the system provide it
-- `rootfs.img` (128MB): **Do not commit to git**. Use `mkrootfs-img.sh` to generate it locally, or attach it to a GitHub Release
+This repository includes an `AGENTS.md` file with:
+- Build commands for single module and full kernel
+- Code style guidelines (tabs, 80 chars, K&R style)
+- Kernel-specific conventions (kmalloc, IS_ERR/PTR_ERR, EXPORT_SYMBOL_GPL)
+- QEMU shortcuts and debugging workflows
+
+Point your AI assistant to `docs/AGENTS.md` before making kernel changes.
+
+## BusyBox Binary Policy
+
+- `busybox-x86_64` (~1.1MB): **Prebuilt static binary included** for out-of-the-box x86_64 usage
+- `busybox-aarch64`: **Must be built/downloaded separately** due to cross-compilation requirements. Use `scripts/build-busybox.sh aarch64` after installing a cross compiler.
+- `rootfs.img` (128MB): **Do not commit to git**. Generated locally via `mkrootfs-img.sh`.
 
 ## License
 
