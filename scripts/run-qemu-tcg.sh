@@ -34,13 +34,18 @@ cd "$KERNEL_DIR"
 
 qemu-system-x86_64 \
     -M pc-i440fx-8.2 \
+    -cpu qemu64,+topoext \
     -kernel arch/x86_64/boot/bzImage \
     -append "console=ttyS0 root=/dev/vda rw panic=1 nokaslr loglevel=8 net.ifnames=0 biosdevname=0 init=/init" \
     -drive "file=$ROOTFS_IMG,format=raw,if=virtio" \
-    -netdev "user,id=net0,hostfwd=tcp::2222-:22" \
+    -netdev "user,id=net0,hostfwd=tcp::2226-:22" \
     -device virtio-net-pci,netdev=net0 \
     -m 2G \
-    -smp 2 \
+    -smp 8,cores=4,threads=2,sockets=1 \
+    -object memory-backend-ram,id=ram0,size=1024M \
+    -object memory-backend-ram,id=ram1,size=1024M \
+    -numa node,nodeid=0,cpus=0-3,memdev=ram0 \
+    -numa node,nodeid=1,cpus=4-7,memdev=ram1 \
     -serial mon:stdio \
     -no-reboot \
     -display none

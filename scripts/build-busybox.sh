@@ -43,7 +43,9 @@ cd busybox-1.36.1
 
 make defconfig
 sed -i 's/.*CONFIG_STATIC.*/CONFIG_STATIC=y/' .config
-make -j"$JOBS" CROSS_COMPILE="$CROSS_COMPILE"
+sed -i 's/.*CONFIG_TC=.*/CONFIG_TC=n/' .config
+yes "" | make oldconfig CROSS_COMPILE="$CROSS_COMPILE" >/dev/null 2>&1 || true
+make -j"$JOBS" CROSS_COMPILE="$CROSS_COMPILE" EXTRA_CFLAGS="-DLONG_BIT=64" EXTRA_LDFLAGS="--sysroot=/usr/aarch64-redhat-linux/sys-root/fc43"
 cp busybox "$INSTALL_DIR/busybox-$ARCH"
 chmod +x "$INSTALL_DIR/busybox-$ARCH"
 
