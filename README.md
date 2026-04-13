@@ -61,6 +61,37 @@ Then it automatically does:
 └── README.md
 ```
 
+## Getting Kernel Source
+
+This devkit does **not** bundle the Linux kernel source. You need to provide your own kernel tree.
+
+### Option 1: Download Official Stable Kernel
+
+```bash
+cd /mnt/data1/git  # or any directory you prefer
+curl -fsSL -o linux-6.19.12.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.19.12.tar.xz
+tar -xf linux-6.19.12.tar.xz
+mv linux-6.19.12 linux
+```
+
+> Replace `6.19.12` with your desired version.  
+> All stable versions are listed at [kernel.org](https://www.kernel.org/).
+
+### Option 2: Clone from Git
+
+```bash
+cd /mnt/data1/git
+git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+```
+
+### Option 3: Use an Existing Local Tree
+
+If you already have kernel source somewhere (e.g. `~/linux` or `/usr/src/kernels/...`), just remember the path. The devkit scripts read it from:
+
+- The first positional argument
+- Or the `KERNEL_DIR` environment variable
+- Or the default `../linux` relative to this repo
+
 ## Manual Steps
 
 If you prefer to run each step manually:
@@ -141,6 +172,38 @@ Inside the VM shell, try:
 | `busybox-aarch64` incompatible | Prebuilt binary built on different toolchain | Install cross compiler and run `./scripts/build-busybox.sh aarch64` |
 | `KVM permission denied` | No KVM access | Use `run-qemu-tcg.sh` or add user to `kvm` group |
 | virtio disk not found | Missing `CONFIG_VIRTIO_BLK` | Copy config template into kernel `.config` |
+
+## Working with OpenCode / AI Agents
+
+This repo is designed to be **AI-agent friendly**. Before asking an agent to modify kernel code, point it to `docs/AGENTS.md` so it knows:
+
+- How to build the full kernel or a single module
+- Kernel coding style (tabs, 80 cols, K&R braces, `kmalloc`, `IS_ERR`, etc.)
+- QEMU shortcuts (`Ctrl+A X` to exit, serial console usage)
+- Where the kernel source and rootfs are located
+
+### Typical OpenCode Workflow
+
+1. **Tell the agent where things are**
+   ```
+   Kernel source is at /mnt/data1/git/linux
+   DevKit is at /mnt/data1/git/kernel-qemu-devkit
+   ```
+
+2. **Ask it to read AGENTS.md first**
+   ```
+   Please read docs/AGENTS.md in this repo before making any kernel changes.
+   ```
+
+3. **Common tasks you can delegate**
+   - *Build & test*: "Compile the kernel and boot it in QEMU"
+   - *Add a module*: "Write a hello-world kernel module, build it, and load it inside QEMU"
+   - *Debug*: "Add some printk, rebuild, and verify output in the VM"
+   - *Change topology*: "Make the VM have 2 NUMA nodes / 4 cores / 8 threads"
+   - *Cross-arch*: "Set up an aarch64 test environment with this devkit"
+
+4. **Let the agent manage the devkit**
+   All scripts are idempotent. The agent can safely re-run `prepare-rootfs.sh`, `mkrootfs-img.sh`, and the `run-qemu*.sh` launchers.
 
 ## AI Agent / OpenCode Support
 
