@@ -7,7 +7,7 @@ Supports **x86_64** and **aarch64 (ARM64)** architectures.
 ## Features
 
 - One-key deployment with interactive prompts
-- Prebuilt static busybox for x86_64 (zero dependency)
+- Prebuilt static busybox for x86_64 and aarch64 (zero dependency)
 - Copy-paste kernel config templates
 - Works with TCG (no KVM) and KVM modes
 - AI-agent friendly (OpenCode / Cursor / Copilot)
@@ -45,7 +45,8 @@ Then it automatically does:
 │   └── AGENTS.md                   # AI assistant guidelines
 ├── prebuilt/
 │   └── busybox/
-│       └── busybox-x86_64          # Prebuilt static busybox
+│       ├── busybox-x86_64          # Prebuilt static busybox
+│       └── busybox-aarch64         # Prebuilt static busybox
 ├── rootfs-template/
 │   └── init                        # init script template
 ├── scripts/
@@ -73,7 +74,14 @@ If you prefer to run each step manually:
 ./scripts/mkrootfs-img.sh
 ```
 
-**aarch64** (build busybox first, or provide your own):
+**aarch64** (prebuilt busybox already included):
+
+```bash
+./scripts/prepare-rootfs.sh --arch aarch64
+./scripts/mkrootfs-img.sh
+```
+
+If the prebuilt binary is incompatible with your environment, rebuild it:
 
 ```bash
 # Install aarch64 cross compiler
@@ -81,10 +89,6 @@ sudo apt install gcc-aarch64-linux-gnu
 
 # Build static busybox
 ./scripts/build-busybox.sh aarch64
-
-# Generate rootfs
-./scripts/prepare-rootfs.sh --arch aarch64
-./scripts/mkrootfs-img.sh
 ```
 
 ### 2. Prepare Kernel
@@ -134,7 +138,7 @@ Inside the VM shell, try:
 |---------|-------|-----|
 | `proc/` is empty | Missing `init=/init` in kernel cmdline | Already included in all run scripts |
 | `No static busybox found` | Prebuilt binary missing | Run `./scripts/build-busybox.sh x86_64` or copy one to `prebuilt/busybox/` |
-| aarch64 busybox missing | Not prebuilt for legal/size | Install cross compiler and run `./scripts/build-busybox.sh aarch64` |
+| `busybox-aarch64` incompatible | Prebuilt binary built on different toolchain | Install cross compiler and run `./scripts/build-busybox.sh aarch64` |
 | `KVM permission denied` | No KVM access | Use `run-qemu-tcg.sh` or add user to `kvm` group |
 | virtio disk not found | Missing `CONFIG_VIRTIO_BLK` | Copy config template into kernel `.config` |
 
@@ -151,7 +155,7 @@ Point your AI assistant to `docs/AGENTS.md` before making kernel changes.
 ## BusyBox Binary Policy
 
 - `busybox-x86_64` (~1.1MB): **Prebuilt static binary included** for out-of-the-box x86_64 usage
-- `busybox-aarch64`: **Must be built/downloaded separately** due to cross-compilation requirements. Use `scripts/build-busybox.sh aarch64` after installing a cross compiler.
+- `busybox-aarch64` (~2.2MB): **Prebuilt static binary included** for out-of-the-box aarch64 usage. If you encounter compatibility issues with your cross-compilation environment, rebuild it via `scripts/build-busybox.sh aarch64`.
 - `rootfs.img` (128MB): **Do not commit to git**. Generated locally via `mkrootfs-img.sh`.
 
 ## License
