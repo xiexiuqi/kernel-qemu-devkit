@@ -1,0 +1,35 @@
+# Binary files
+*.img
+*.cpio
+*.cpio.gz
+*.gz
+busybox
+vmlinux
+bzImage
+*.ko
+*.o
+*.a
+
+# Build artifacts
+build/
+build.log
+*.log
+
+# Mount points
+mnt/
+mnt_*/
+
+# Generated files
+rootfs/
+rootfs.img
+rootfs.cpio.gz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
